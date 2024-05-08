@@ -71,4 +71,4 @@ pipeline {
   triggers {
     pollSCM('*/10 * * * 1-5')
   }
-}
+
