@@ -61,7 +61,7 @@ stage('Currency API') {
         }
       }
     }
-  }
+  
   
 
   environment {
