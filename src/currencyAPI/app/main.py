@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 import requests
+import re
 
 app = FastAPI()
 
@@ -42,13 +43,17 @@ async def convert_amount(from_currency: str, to_currency: str, amount: float) ->
 # @CODE : AN ENDPOINT THAT TAKES A STRING AND CONFIRMS IT HAS
 # AT LEAST ONE UPPERCASE LETTER, ONE LOWERCASE LETTER, ONE NUMBER, AND IS 8 OR MORE CHARACTERS
 # Make sure the return type matches the function signature, FastAPI enforces that it does!
-#@app.get("/check_password_strength")
-#async def check_password_strength(password: str) -> bool:
-#    """
-#    Coded By: <name>  
-#    This function checks whether a given password is strong enough, i.e., it contains at least one digit, 
-#    one lowercase letter, one uppercase letter, and is 8 characters long.
-#    """
+@app.get("/check_password_strength")
+async def check_password_strength(password: str) -> bool:
+   """
+   Coded By: <name>  
+   This function checks whether a given password is strong enough, i.e., it contains at least one digit, 
+   one lowercase letter, one uppercase letter, and is 8 characters long.
+   """
+     if re.search(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$", password):
+        return True
+    else:
+        return False
 
 
 # @CODE : ADD ENDPOINT TO LIST ALL AVAILABLE CURRENCIES  
