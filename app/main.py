@@ -1,28 +1,19 @@
-from pickle import GET
-from fastapi import FastAPI, HTTPException
+from sqlalchemy import create_engine, Table, Column, String, DateTime, Numeric, update, MetaData
+from sqlalchemy.orm import sessionmaker
 import requests
 import re
-url = "https://api.example.com/v2/currencies/crypto"
-
-response = requests.get(url)
+from fastapi import FastAPI, HTTPException
+#To fetch cryptocurrencies
+# url = "https://api.example.com/v2/currencies/crypto"
+# response = requests.get(url)        #request object
 
 app = FastAPI()
-
 API_BASE_URL = "https://api.exchangerate-api.com/v4/latest/"
-
-
+...
 async def get_exchange_rate(from_currency: str, to_currency: str) -> float:
-    response = requests.get(f"{API_BASE_URL}{from_currency.upper()}") 
-    if response.status_code == 200:
-        data = response.json()
-        if to_currency.upper() in data["rates"]:
-            return data["rates"][to_currency.upper()]
-        else:
-            raise HTTPException(status_code=400, detail="To currency not supported")
-    else:
-        raise HTTPException(status_code=400, detail="From currency not supported")
-
-
+    response = await requests.get(f"{API_BASE_URL}/{from_currency}")
+    data = response.json()
+    return data["rates"][to_currency]
 @app.get("/exchange_rate")
 async def exchange_rate(from_currency: str, to_currency: str) -> dict:
     rate = await get_exchange_rate(from_currency, to_currency)
@@ -31,8 +22,6 @@ async def exchange_rate(from_currency: str, to_currency: str) -> dict:
         "to_currency": to_currency.upper(),
         "exchange_rate": rate,
     }
-
-
 @app.get("/convert_amount")
 async def convert_amount(from_currency: str, to_currency: str, amount: float) -> dict:
     rate = await get_exchange_rate(from_currency, to_currency)
@@ -43,45 +32,39 @@ async def convert_amount(from_currency: str, to_currency: str, amount: float) ->
         "amount": amount,
         "converted_amount": converted_amount,
     }
-  
-# @CODE : AN ENDPOINT THAT TAKES A STRING AND CONFIRMS IT HAS
+ 
+ # @CODE : AN ENDPOINT THAT TAKES A STRING AND CONFIRMS IT HAS
 # AT LEAST ONE UPPERCASE LETTER, ONE LOWERCASE LETTER, ONE NUMBER, AND IS 8 OR MORE CHARACTERS
 # Make sure the return type matches the function signature, FastAPI enforces that it does!
 @app.get("/check_password_strength")
 async def check_password_strength(password: str) -> bool:
-    # Use regular expressions to check password strength
+    """
+    Coded By: <name>  
+    This function checks whether a given password is strong enough, i.e., it contains at least one digit,
+    one lowercase letter, one uppercase letter, and is 8 characters long.
+    """
     if re.search(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$", password):
         return True
     else:
         return False
-#    """
-#    Coded By: <name>  
-#    This function checks whether a given password is strong enough, i.e., it contains at least one digit, 
-#    one lowercase letter, one uppercase letter, and is 8 characters long.
-#    """
-
-
+    
 # @CODE : ADD ENDPOINT TO LIST ALL AVAILABLE CURRENCIES  
 # NOTE : FastAPI enforces that the return type of the function matches the function signature!  
 #        This is a common error!
 @app.get("/available_currencies")
 async def available_currencies(from_currency: str) -> dict:
-#    """
-#    Coded by: <name>  
-#    This endpoint returns a list of available fiat currencies that can be paired with the @from_currency parameter.  
-#    @from_currency : str - you must specify a currency to see what currencies it can be compared against.
-#    """
-    currency_data = {
-            "USD": ["EUR", "GBP", "JPY"],
-            "EUR": ["USD", "GBP", "JPY"],
-            "GBP": ["USD", "EUR", "JPY"],
-            "JPY": ["USD", "EUR", "GBP"]
-        }
-        
-    if from_currency not in currency_data:
-            return {"error": f"Currency {from_currency} not found."}
-        
-    return {"available_currencies": currency_data[from_currency]}
+    
+    """
+    Coded by: <name>  
+    This endpoint returns a list of available fiat currencies that can be paired with the @from_currency parameter.  
+    @from_currency : str - you must specify a currency to see what currencies it can be compared against.
+    """
+    available_currencies = ["USD", "EUR", "GBP","JPY"] 
+
+    if from_currency in available_currencies:
+        available_currencies.remove(from_currency)
+
+    return {"from_currency": from_currency, "available_currencies": available_currencies}
 
 
 # @CODE : ADD ENDPOINT TO GET LIST OF CRYPTO CURRENCIES
@@ -89,36 +72,34 @@ async def available_currencies(from_currency: str) -> dict:
 # Search for the endpoint that returns all the crypto currencies.
 @app.get("/available_crypto")
 async def available_crypto() -> dict:
-#    """
-#    Coded by: <name>  
-#    This endpoint allows you to see what crypto-currencies are available  
-#    """
+    """
+        Coded by: <name>  
+        This endpoint allows you to see what crypto-currencies are available  
+    """
+    url = "https://api.coinbase.com/v2/currencies"
+    response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
-    # Process the data here
+        crypto_names = [currency["name"] for currency in data.get("data", [])]
+        return {"available_crypto": crypto_names}
     else:
-        print("Error: Unable to fetch data from the API. Status code:", response.status_code)
+        return {"error": "Failed to fetch available cryptocurrencies"}
 
-
-    
 # @CODE : ADD ENDPOINT TO GET Price of crypto  
 # Use the coinbase API from above
 @app.get("/convert_crypto")
 async def convert_crypto(from_crypto: str, to_currency: str) -> dict:
-#    """
-#    Coded by: <name>  
-#    This endpoint allows you to get a quote for a crypto in any supported currency  
-#    @from_crypto - chose a crypto currency (eg. BTC, or ETH)  
-#    @to_currency - chose a currency to obtain the price in (eg. USD, or CAD)  
-#    """
-    try:
-        # Fetch the current price
-        price = client.get_buy_price(currency_pair=f'{from_crypto}-{to_currency}')
-        return {'price': price.amount, 'currency': to_currency}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+    """
+    Coded by: <name>  
+    This endpoint allows you to get a quote for a crypto in any supported currency  
+    @from_crypto - chose a crypto currency (eg. BTC, or ETH)  
+    @to_currency - chose a currency to obtain the price in (eg. USD, or CAD)  
+    """
+    url = "https://api.coinbase.com/v2/prices/"
+    response = requests.get(f"{url}{from_crypto.upper()}-{to_currency.upper()}/spot")
+    if response.status_code == 200:
+       data = response.json()
+       return data
 
 # @CODE : ADD ENDPOINT TO UPDATE PRICE OF ASSET IN ORDERBOOK DB
 # The code below starts you off using SQLAlchemy ORM
@@ -127,19 +108,18 @@ async def convert_crypto(from_crypto: str, to_currency: str) -> dict:
 @app.get("/update_orderbookdb_asset_price")
 async def update_orderbookdb_asset_price(symbol: str, new_price: float) -> dict:
     """
-    Coded by: <name>  
-    This endpoint allows us to update the price of the assets in the app  
-    @symbol - pick a symbol to update the price of in the orderbook app  
-    @new_price - The new price of the symbol  
+        Coded by: <name>  
+        This endpoint allows us to update the price of the assets in the app  
+        @symbol - pick a symbol to update the price of in the orderbook app  
+        @new_price - The new price of the symbol  
     """
-    
-    # import sqlalchemy
+   
+    #import sqlalchemy
     from sqlalchemy import create_engine, Table, Column, String, DateTime, Numeric, update, MetaData
     from sqlalchemy.orm import sessionmaker
-    
+   
     # create an engine for building sessions
     engine = create_engine('mysql+pymysql://wiley:wiley123@orderbookdb/orderbook')
-
     # create an ORM object that maps to the Product table
     metadata = MetaData()
     product_table = Table('Product', metadata,
@@ -150,10 +130,8 @@ async def update_orderbookdb_asset_price(symbol: str, new_price: float) -> dict:
         Column('lastUpdate', DateTime)
     )
     metadata.create_all(engine)
-
     # create a database session maker
     Session = sessionmaker(bind=engine)
-
     try:
         # Instantiate the session
         session = Session()
@@ -170,15 +148,14 @@ async def update_orderbookdb_asset_price(symbol: str, new_price: float) -> dict:
     finally:
         session.close()
 
-    
 # @CODE : ADD ENDPOINT FOR INSERTING A CRYPTO CURRENCY INTO THE ORDERBOOK APP
 # HINT: Make use of the convert_crypto function from above! 
 #       You will need to use the await keyword to wait for the result (otherwise it will run async and not wait for the result)
-#@app.get("/add_crypto_to_orderbook")
-#async def add_crypto_to_orderbook(symbol: str) -> dict:
-#    """
-#     Coded by: <name>  
-#     This endpoint uses the `convert_crypto` function above to get the price of a crypto-currency  
-#     and inserts that currency and price into the orderbook database 
-#    """
+@app.get("/add_crypto_to_orderbook")
+async def add_crypto_to_orderbook(symbol: str) -> dict:
+    """
+        Coded by: <name>  
+        This endpoint uses the `convert_crypto` function above to get the price of a crypto-currency  
+        and inserts that currency and price into the orderbook database 
+    """
   
