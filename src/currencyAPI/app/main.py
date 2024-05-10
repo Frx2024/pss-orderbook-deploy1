@@ -1,6 +1,11 @@
 from fastapi import FastAPI, HTTPException
 import requests
 import re
+#To fetch cryptocurrencies
+url = "https://api.example.com/v2/currencies/crypto"
+response = requests.get(url)        #request object
+
+currencies = client.get_currencies()
 
 app = FastAPI()
 
@@ -59,36 +64,55 @@ async def check_password_strength(password: str) -> bool:
 # @CODE : ADD ENDPOINT TO LIST ALL AVAILABLE CURRENCIES  
 # NOTE : FastAPI enforces that the return type of the function matches the function signature!  
 #        This is a common error!
-#@app.get("/available_currencies")
-#async def available_currencies(from_currency: str) -> dict:
+@app.get("/available_currencies")
+async def available_currencies(from_currency: str) -> dict:
+    
 #    """
 #    Coded by: <name>  
 #    This endpoint returns a list of available fiat currencies that can be paired with the @from_currency parameter.  
 #    @from_currency : str - you must specify a currency to see what currencies it can be compared against.
 #    """
+    currency_data = {
+        "USD": ["EUR", "GBP", "JPY"],
+        "EUR": ["USD", "GBP", "JPY"],
+        "GBP": ["USD", "EUR", "JPY"],
+        "JPY": ["USD", "EUR", "GBP"]
+    }
+    
+    if from_currency not in currency_data:
+        return {"error": f"Currency {from_currency} not found."}
+    
+    return {"available_currencies": currency_data[from_currency]}
 
 
 # @CODE : ADD ENDPOINT TO GET LIST OF CRYPTO CURRENCIES
 # You can use this API https://docs.cloud.coinbase.com/sign-in-with-coinbase/docs/api-currencies
 # Search for the endpoint that returns all the crypto currencies.
-#@app.get("/available_crypto")
-#async def available_crypto() -> dict:
+@app.get("/available_crypto")
+async def available_crypto() -> dict:
 #    """
 #    Coded by: <name>  
 #    This endpoint allows you to see what crypto-currencies are available  
 #    """
+    if response.status_code == 200:
+        data = response.json()
+    # Process the data here
+    else:
+        print("Error: Unable to fetch data from the API. Status code:", response.status_code)
+    
 
     
 # @CODE : ADD ENDPOINT TO GET Price of crypto  
 # Use the coinbase API from above
-# @app.get("/convert_crypto")
-# async def convert_crypto(from_crypto: str, to_currency: str) -> dict:
+@app.get("/convert_crypto")
+async def convert_crypto(from_crypto: str, to_currency: str) -> dict:
 #    """
 #    Coded by: <name>  
 #    This endpoint allows you to get a quote for a crypto in any supported currency  
 #    @from_crypto - chose a crypto currency (eg. BTC, or ETH)  
 #    @to_currency - chose a currency to obtain the price in (eg. USD, or CAD)  
 #    """
+    
 
 
 # @CODE : ADD ENDPOINT TO UPDATE PRICE OF ASSET IN ORDERBOOK DB
@@ -103,6 +127,9 @@ async def update_orderbookdb_asset_price(symbol: str, new_price: float) -> dict:
     @symbol - pick a symbol to update the price of in the orderbook app  
     @new_price - The new price of the symbol  
     """
+    
+
+    
     
     # import sqlalchemy
     from sqlalchemy import create_engine, Table, Column, String, DateTime, Numeric, update, MetaData
