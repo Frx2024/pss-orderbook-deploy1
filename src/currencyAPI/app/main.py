@@ -5,7 +5,7 @@ import re
 url = "https://api.example.com/v2/currencies/crypto"
 response = requests.get(url)        #request object
 
-currencies = client.get_currencies()
+
 
 app = FastAPI()
 
