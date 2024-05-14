@@ -1,3 +1,5 @@
+# FastAPI Python App Deploy URL: https://c384team05dev-currencyapi.computerlab.online/docs#/
+
 from sqlalchemy import create_engine, Table, Column, String, DateTime, Numeric, update, MetaData
 from sqlalchemy.orm import sessionmaker
 import requests
