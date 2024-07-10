@@ -2,20 +2,20 @@ pipeline {
   agent {
     kubernetes {
       yaml """\
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    builder: promotion
-spec:
-  serviceAccountName: jenkins-agent
-  containers:
-  - name: awscli
-    image: amazon/aws-cli
-    command:
-    - cat
-    tty: true
-""".stripIndent()
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          builder: promotion
+      spec:
+        serviceAccountName: jenkins-agent
+        containers:
+        - name: awscli
+          image: amazon/aws-cli
+          command:
+          - cat
+          tty: true
+      """.stripIndent()
     }
   }
   stages {
@@ -23,12 +23,13 @@ spec:
       steps {
         script {
           sh """
-            curl https://c388team06dev.computerlab.online/
-            curl https://c388team06dev-api.computerlab.online/
+          curl https://c388team06dev.computerlab.online/
+          curl https://c388team06dev-api.computerlab.online/
           """
         }
       }
     }
+
     stage('Promote to Production') {
       steps {
         container(name: 'awscli') {
@@ -38,80 +39,91 @@ spec:
           sh '''
           export AWS_DEFAULT_REGION=us-east-1
           imgNum=''' + buildNumber + '''
+          
+          # Function to check if an image exists in the ECR repository
+          check_image_exists() {
+            image_name=$1
+            aws ecr describe-images --repository-name production-support-course --image-ids imageTag=$image_name > /dev/null 2>&1
+            echo $?
+          }
+
+          # Check if API image exists
+          if [ $(check_image_exists "${imageAPIDevName}${imgNum}") -ne 0 ]; then
+            echo "API image does not exist. Exiting..."
+            exit 1
+          fi
+
+          # Check if DB image exists
+          if [ $(check_image_exists("${imageDBDevName}${imgNum}") -ne 0 ]; then
+            echo "DB image does not exist. Exiting..."
+            exit 1
+          fi
+
+          # Check if FE image exists
+          if [ $(check_image_exists("${imageFEDevName}${imgNum}") -ne 0 ]; then
+            echo "FE image does not exist. Exiting..."
+            exit 1
+          fi
+
+          # Check if SSH image exists
+          if [ $(check_image_exists("${imageSSHDevName}${imgNum}") -ne 0 ]; then
+            echo "SSH image does not exist. Exiting..."
+            exit 1
+          fi
+
+          # Get the image manifests
           APIMANIFEST=$(aws ecr batch-get-image --repository-name production-support-course --image-ids imageTag=${imageAPIDevName}${imgNum} --query 'images[].imageManifest' --output text)
           DBMANIFEST=$(aws ecr batch-get-image --repository-name production-support-course --image-ids imageTag=${imageDBDevName}${imgNum} --query 'images[].imageManifest' --output text)
           FEMANIFEST=$(aws ecr batch-get-image --repository-name production-support-course --image-ids imageTag=${imageFEDevName}${imgNum} --query 'images[].imageManifest' --output text)
           SSHMANIFEST=$(aws ecr batch-get-image --repository-name production-support-course --image-ids imageTag=${imageSSHDevName}${imgNum} --query 'images[].imageManifest' --output text)
-          
-          check_image_exists() {
-            local repo_name=$1
-            local image_tag=$2
-            aws ecr describe-images --repository-name $repo_name --query 'imageDetails[?contains(imageTags, `'$image_tag'`)].imageTags' --output text
-          }
 
           exitvalue=0
-          
+
           # Check API
-          if [ -z "$(check_image_exists production-support-course ${imageAPIProdName}${imgNum})" ]; then
+          if [ $(aws ecr describe-images --repository-name production-support-course | grep "${imageAPIProdName}${imgNum}" | wc -l) -eq 0 ]; then
             if ! aws ecr put-image --repository-name production-support-course --image-tag ${imageAPIProdName}${imgNum} --image-manifest "$APIMANIFEST"; then
               exitvalue=1
             fi
           fi
-          
+
           # Check DB
-          if [ -z "$(check_image_exists production-support-course ${imageDBProdName}${imgNum})" ]; then
+          if [ $(aws ecr describe-images --repository-name production-support-course | grep "${imageDBProdName}${imgNum}" | wc -l) -eq 0 ]; then
             if ! aws ecr put-image --repository-name production-support-course --image-tag ${imageDBProdName}${imgNum} --image-manifest "$DBMANIFEST"; then
               exitvalue="${exitvalue}2"
             fi
           fi
-          
+
           # Check Front End
-          if [ -z "$(check_image_exists production-support-course ${imageFEProdName}${imgNum})" ]; then
+          if [ $(aws ecr describe-images --repository-name production-support-course | grep "${imageFEProdName}${imgNum}" | wc -l) -eq 0 ]; then
             if ! aws ecr put-image --repository-name production-support-course --image-tag ${imageFEProdName}${imgNum} --image-manifest "$FEMANIFEST"; then
               exitvalue=3
             fi
           fi
 
           # Check SSH
-          if [ -z "$(check_image_exists production-support-course ${imageSSHProdName}${imgNum})" ]; then
+          if [ $(aws ecr describe-images --repository-name production-support-course | grep "${imageSSHProdName}${imgNum}" | wc -l) -eq 0 ]; then
             if ! aws ecr put-image --repository-name production-support-course --image-tag ${imageSSHProdName}${imgNum} --image-manifest "$SSHMANIFEST"; then
               exitvalue="${exitvalue}4"
             fi
           fi
 
           case ${exitvalue} in
-            0) echo "Update OK"
-               ;;
-            1) echo "API failed to push to repository"
-               ;;
-            2) echo "DB failed to push to repository"
-               ;;
-            3) echo "Front End failed to push to repository"
-               ;;
-            4) echo "SSH failed to push to repository"
-               ;;
-            12) echo "API and DB failed to push to repository"
-               ;;
-            13) echo "API and Front End failed to push to repository"
-               ;;
-            14) echo "API and SSH failed to push to repository"
-               ;;
-            23) echo "DB and Front End failed to push to repository"
-               ;;
-            24) echo "DB and SSH failed to push to repository"
-               ;;
-            34) echo "Front End and SSH failed to push to repository"
-               ;;
-            123) echo "API, DB, and Front End failed to push to repository"
-               ;;
-            124) echo "API, DB, and SSH failed to push to repository"
-               ;;
-            134) echo "API, Front End, and SSH failed to push to repository"
-               ;;
-            234) echo "DB, Front End, and SSH failed to push to repository"
-               ;;
-            1234) echo "All images failed to push to repository"
-               ;;
+            0) echo "Update OK" ;;
+            1) echo "API failed to push to repository" ;;
+            2) echo "DB failed to push to repository" ;;
+            3) echo "FE failed to push to repository" ;;
+            4) echo "SSH failed to push to repository" ;;
+            12) echo "API and DB failed to push to repository" ;;
+            13) echo "API and FE failed to push to repository" ;;
+            14) echo "API and SSH failed to push to repository" ;;
+            23) echo "DB and FE failed to push to repository" ;;
+            24) echo "DB and SSH failed to push to repository" ;;
+            34) echo "FE and SSH failed to push to repository" ;;
+            123) echo "API, DB, and FE failed to push to repository" ;;
+            124) echo "API, DB, and SSH failed to push to repository" ;;
+            134) echo "API, FE, and SSH failed to push to repository" ;;
+            234) echo "DB, FE, and SSH failed to push to repository" ;;
+            1234) echo "All images failed to push to repository" ;;
           esac
 
           exit ${exitvalue}
@@ -122,6 +134,7 @@ spec:
   }
   environment {
     ECR_REPO = '108174090253.dkr.ecr.us-east-1.amazonaws.com/production-support-course'
+
     imageAPIDevName = 'c388team06api-dev-'
     imageAPIProdName = 'c388team06api-prod-'
     imageDBDevName = 'c388team06db-dev-'
